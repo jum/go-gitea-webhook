@@ -35,7 +35,7 @@ Running `./go-gitea-webhook` should create `go-gitea-webhook.log` with content l
 2018/02/15 06:05:29 Listening on 0.0.0.0:3344
 ```
 
-The special logfile name of "-" is recognized to not redirect the lofile so it can be used from systemd-journald or launchd plists.
+The special logfile name of "-" is recognized to not redirect the logfile so it can be used from systemd-journald or launchd plists.
 
 ## Example use case
 
