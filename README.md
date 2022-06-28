@@ -1,15 +1,13 @@
 # go-gitea-webhook
 
-Simple webhook receiver implementation for Gitea/Gogs. Based on [go-gitlab-webhook](https://github.com/soupdiver/go-gitlab-webhook).
+Simple webhook receiver implementation for Gitea/Gogs. Based on [go-gitlab-webhook](https://github.com/soupdiver/go-gitlab-webhook) and [go-gitea-webhook](github.com/mrexodia/go-gitea-webhook).
 
 ## Installation guide
 
 First get and build `go-gitea-webhook`:
 
 ```bash
-go get github.com/mrexodia/go-gitea-webhook
-cd $GOPATH/src/github.com/mrexodia/go-gitea-webhook
-go build
+go install github.com/jum/go-gitea-webhook@latest
 ```
 
 Then set up your configuration in `config.json`:
@@ -19,9 +17,9 @@ Then set up your configuration in `config.json`:
   "logfile": "go-gitea-webhook.log",
   "address": "0.0.0.0",
   "port": 3344,
+  "secret": "verysecret123",
   "repositories": [
     {
-      "secret": "verysecret123",
       "name": "user/repo",
       "commands": [
         "/home/user/update_repo.sh"
@@ -36,6 +34,8 @@ Running `./go-gitea-webhook` should create `go-gitea-webhook.log` with content l
 ```
 2018/02/15 06:05:29 Listening on 0.0.0.0:3344
 ```
+
+The special logfile name of "-" is recognized to not redirect the lofile so it can be used from systemd-journald or launchd plists.
 
 ## Example use case
 
@@ -54,6 +54,14 @@ for branch in `git branch -a | grep remotes/origin | grep -v HEAD`; do
 done
 git checkout -q origin/master
 cd $old_pwd
+```
+
+The following special environment names are set while executing the hook script:
+
+```bash
+REPO_NAME="user/repo"
+REPO_REF="refs/head/master"
+REPO_AFTER="<commit_hash>"
 ```
 
 Supervisor config (`/etc/supervisor/conf.d/webhook.conf`):
