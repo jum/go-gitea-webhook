@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -19,20 +19,21 @@ import (
 	"syscall"
 
 	api "code.gitea.io/gitea/modules/structs"
+	"code.gitea.io/sdk/gitea"
 )
 
-//ConfigRepository represents a repository from the config file
+// ConfigRepository represents a repository from the config file
 type ConfigRepository struct {
-	Secret   string
 	Name     string
 	Commands []string
 }
 
-//Config represents the config file
+// Config represents the config file
 type Config struct {
 	Logfile      string
 	Address      string
 	Port         int64
+	Secret       string
 	Repositories []ConfigRepository
 }
 
@@ -68,23 +69,26 @@ func main() {
 		configFile = "config.json"
 	}
 
+	var err error
 	//load config
 	config = loadConfig(configFile)
 
-	//open log file
-	writer, err := os.OpenFile(config.Logfile, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
-	panicIf(err)
+	if config.Logfile != "-" {
+		//open log file
+		writer, err := os.OpenFile(config.Logfile, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+		panicIf(err)
 
-	//close logfile on exit
-	defer func() {
-		writer.Close()
-	}()
+		//close logfile on exit
+		defer func() {
+			writer.Close()
+		}()
 
-	//setting logging output
-	log.SetOutput(writer)
+		//setting logging output
+		log.SetOutput(writer)
+	}
 
 	//setting handler
-	http.HandleFunc("/", hookHandler)
+	http.Handle("/", gitea.VerifyWebhookSignatureMiddleware(config.Secret)(http.HandlerFunc(hookHandler)))
 
 	address := config.Address + ":" + strconv.FormatInt(config.Port, 10)
 
@@ -119,27 +123,28 @@ func loadConfig(configFile string) Config {
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
-		if r := recover(); r != nil {
-			log.Println(r)
+		if reason := recover(); reason != nil {
+			httpError(w, r, http.StatusBadRequest, fmt.Errorf("panic: %v", reason))
 		}
 	}()
 
-	//get the hook event from the headers
-	event := r.Header.Get("X-Gogs-Event")
-	if len(event) == 0 {
-		event = r.Header.Get("X-Gitea-Event")
-	}
-
-	//only push events are current supported
-	if event != "push" {
-		log.Printf("received unknown event \"%s\"\n", event)
+	if r.Method != http.MethodPost {
+		httpError(w, r, http.StatusMethodNotAllowed, nil)
 		return
 	}
-
+	//get the hook event from the headers
+	event := r.Header.Get("X-Gitea-Event")
+	//only push events are current supported
+	if event != "push" {
+		httpError(w, r, http.StatusBadRequest, fmt.Errorf("unhandled event %v", event))
+		return
+	}
 	//read request body
-	var data, err = ioutil.ReadAll(r.Body)
-	panicIf(err, "while reading request body")
-
+	var data, err = io.ReadAll(r.Body)
+	if err != nil {
+		httpError(w, r, http.StatusBadRequest, fmt.Errorf("reading body: %w", err))
+		return
+	}
 	//unmarshal request body
 	var hook api.PushPayload
 	err = json.Unmarshal(data, &hook)
@@ -151,24 +156,32 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	for _, repo := range config.Repositories {
 
 		if repo.Name == hook.Repo.FullName || repo.Name == hook.Repo.HTMLURL {
-
-			//check if the secret in the configuration matches the request
-			if repo.Secret != hook.Secret {
-				log.Printf("secret mismatch for repo %s\n", repo.Name)
-				continue
-			}
-
 			//execute commands for repository
 			for _, cmd := range repo.Commands {
 				var command = exec.Command(cmd)
-				out, err := command.Output()
+				command.Env = append(os.Environ(), fmt.Sprintf("REPO_NAME=%v", hook.Repo.FullName), fmt.Sprintf("REPO_REF=%v", hook.Ref), fmt.Sprintf("REPO_AFTER=%v", hook.After))
+				out, err := command.CombinedOutput()
 				if err != nil {
 					log.Println(err)
+					httpError(w, r, http.StatusInternalServerError, err)
 				} else {
 					log.Println("Executed: " + cmd)
 					log.Println("Output: " + string(out))
+					_, err = w.Write(out)
+					if err != nil {
+						log.Println(err)
+					}
 				}
 			}
+			break
 		}
+	}
+}
+
+func httpError(w http.ResponseWriter, r *http.Request, status int, err error) {
+	http.Error(w, http.StatusText(status), status)
+	if err != nil {
+		log.Printf("%v:%v", status, err)
+		fmt.Fprintf(w, "%v:%v", status, err)
 	}
 }
