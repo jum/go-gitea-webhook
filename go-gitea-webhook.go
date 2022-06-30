@@ -159,7 +159,13 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			//execute commands for repository
 			for _, cmd := range repo.Commands {
 				var command = exec.Command(cmd)
-				command.Env = append(os.Environ(), fmt.Sprintf("REPO_NAME=%v", hook.Repo.FullName), fmt.Sprintf("REPO_REF=%v", hook.Ref), fmt.Sprintf("REPO_AFTER=%v", hook.After))
+				command.Env = append(os.Environ(),
+					fmt.Sprintf("REPO_NAME=%v", hook.Repo.FullName),
+					fmt.Sprintf("REPO_OWNER=%v", hook.Repo.Owner.Email),
+					fmt.Sprintf("REPO_REF=%v", hook.Ref),
+					fmt.Sprintf("REPO_HEAD_COMMIT=%v", hook.HeadCommit.Id),
+					fmt.Sprintf("REPO_HEAD_AUTHOR=%v", hook.HeadCommit.Author.Email),
+				)
 				out, err := command.CombinedOutput()
 				if err != nil {
 					log.Println(err)

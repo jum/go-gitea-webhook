@@ -60,8 +60,10 @@ The following special environment names are set while executing the hook script:
 
 ```bash
 REPO_NAME="user/repo"
+REPO_OWNER="owner@example.com"
 REPO_REF="refs/head/master"
-REPO_AFTER="<commit_hash>"
+REPO_HEAD_COMMIT="<commit_hash>"
+REPO_HEAD_AUTHOR="user@example.com"
 ```
 
 Supervisor config (`/etc/supervisor/conf.d/webhook.conf`):
