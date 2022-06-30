@@ -163,7 +163,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					fmt.Sprintf("REPO_NAME=%v", hook.Repo.FullName),
 					fmt.Sprintf("REPO_OWNER=%v", hook.Repo.Owner.Email),
 					fmt.Sprintf("REPO_REF=%v", hook.Ref),
-					fmt.Sprintf("REPO_HEAD_COMMIT=%v", hook.HeadCommit.Id),
+					fmt.Sprintf("REPO_HEAD_COMMIT=%v", hook.HeadCommit.ID),
 					fmt.Sprintf("REPO_HEAD_AUTHOR=%v", hook.HeadCommit.Author.Email),
 				)
 				out, err := command.CombinedOutput()
