@@ -110,12 +110,11 @@ func loadConfig(configFile string) Config {
 		panicIf(file.Close())
 	}()
 
-	buffer := make([]byte, 1024)
+	buffer, err := io.ReadAll(file)
 
-	count, err := file.Read(buffer)
 	panicIf(err)
 
-	err = json.Unmarshal(buffer[:count], &config)
+	err = json.Unmarshal(buffer, &config)
 	panicIf(err)
 
 	return config
